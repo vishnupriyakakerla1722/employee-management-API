@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Management API (JWT Secured)</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 700px; margin: 30px auto; padding: 15px; background: #f8fafc; }
+        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 20px; }
+        input, select, button { padding: 10px; margin: 5px 0; border-radius: 5px; border: 1px solid #cbd5e1; }
+        button { background: #2563eb; color: white; border: none; cursor: pointer; font-weight: bold; }
+        button.del { background: #dc2626; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #e2e8f0; padding: 8px; text-align: left; }
+        .token { word-break: break-all; font-size: 12px; color: #059669; background: #ecfdf5; padding: 8px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h2>🔐 Secure Employee Management System (JWT + RBAC)</h2>
+    <div class="card">
+        <h3>1. Login / Get JWT Token</h3>
+        <select id="roleSelect">
+            <option value="admin">Login as ADMIN (Can Add & Delete)</option>
+            <option value="user">Login as USER (View Only)</option>
+        </select>
+        <button onclick="login()">Generate JWT Token</button>
+        <div id="tokenBox" class="token">No token yet. Click above to login.</div>
+    </div>
+
+    <div class="card">
+        <h3>2. Add Employee (ADMIN Only)</h3>
+        <input id="empName" placeholder="Employee Name" />
+        <input id="empDept" placeholder="Department (e.g. IT)" />
+        <button onclick="addEmployee()">Add Employee</button>
+    </div>
+
+    <div class="card">
+        <h3>3. Employee Directory (PostgreSQL)</h3>
+        <button onclick="loadEmployees()">Refresh List</button>
+        <table id="empTable">
+            <tr><th>ID</th><th>Name</th><th>Department</th><th>Action</th></tr>
+        </table>
+    </div>
+
+    <script>
+        let jwtToken = "";
+        async function login() {
+            const username = document.getElementById('roleSelect').value;
+            const res = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password: "123" })
+            });
+            const data = await res.json();
+            jwtToken = data.token;
+            document.getElementById('tokenBox').innerText = "JWT Token (" + data.role + "): " + jwtToken;
+            loadEmployees();
+        }
+        async function addEmployee() {
+            const name = document.getElementById('empName').value;
+            const department = document.getElementById('empDept').value;
+            const res = await fetch('/api/employees', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken },
+                body: JSON.stringify({ name, department })
+            });
+            if (!res.ok) return alert("Access Denied! Only ADMIN role can add employees.");
+            document.getElementById('empName').value = "";
+            document.getElementById('empDept').value = "";
+            loadEmployees();
+        }
+        async function deleteEmployee(id) {
+            const res = await fetch('/api/employees/' + id, {
+                method: 'DELETE',
+                headers: { 'Authorization': 'Bearer ' + jwtToken }
+            });
+            if (!res.ok) return alert("Access Denied! Only ADMIN role can delete employees.");
+            loadEmployees();
+        }
+        async function loadEmployees() {
+            const res = await fetch('/api/employees', {
+                headers: { 'Authorization': 'Bearer ' + jwtToken }
+            });
+            if (!res.ok) return alert("Please login first!");
+            const list = await res.json();
+            const table = document.getElementById('empTable');
+            table.innerHTML = '<tr><th>ID</th><th>Name</th><th>Department</th><th>Action</th></tr>';
+            list.forEach(e => {
+                table.innerHTML += `<tr><td>${e.id}</td><td>${e.name}</td><td>${e.department}</td><td><button class="del" onclick="deleteEmployee(${e.id})">Delete</button></td></tr>`;
+            });
+        }
+    </script>
+</body>
+</html>
